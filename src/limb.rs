@@ -3,6 +3,11 @@ pub type LimbRepr = u32;
 #[cfg(target_pointer_width = "64")]
 pub type LimbRepr = u64;
 
+#[cfg(target_pointer_width = "32")]
+pub type LimbReprSigned = i32;
+#[cfg(target_pointer_width = "64")]
+pub type LimbReprSigned = i64;
+
 const REPR_ZERO: LimbRepr = 0x0;
 const REPR_ONE: LimbRepr = 0x1;
 const REPR_ONES: LimbRepr = !REPR_ZERO;
@@ -29,6 +34,12 @@ impl Limb {
     #[inline]
     pub fn repr(self) -> LimbRepr {
         self.0
+    }
+
+    /// Returns the value of the internal representation.
+    #[inline]
+    pub fn repr_signed(self) -> LimbReprSigned {
+        self.0 as LimbReprSigned
     }
 
     /// Calculates `self` + `other`.

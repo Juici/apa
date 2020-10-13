@@ -15,14 +15,18 @@ macro_rules! test_cast {
         let int = ApInt::from(val);
         let cast = <$to>::from(int);
         assert_eq!(
-            val as $to, cast,
+            val as $to,
+            cast,
             concat!(
                 "cast equality failed for `",
                 stringify!($val),
                 " as ",
                 stringify!($to),
-                "`"
-            )
+                "`\n{:0width$b}\n{:0width$b}\n"
+            ),
+            val as $to,
+            cast,
+            width = core::mem::size_of::<$to>() * 8,
         );
     }};
 }

@@ -1,3 +1,4 @@
+use core::mem::MaybeUninit;
 use core::num::NonZeroUsize;
 
 use crate::apint::{ApInt, ApIntStorage};
@@ -43,9 +44,9 @@ macro_rules! impl_from_prim {
 
                         // If sizes are equal don't include last limb. This is hacky,
                         // due to the nature of non-standard bit-shifts across platforms.
-                        let iter_to = capacity.get() - (SIZE_TY == SIZE_LIMB) as usize;
+                        let iter_to = capacity.get() - ((SIZE_TY >= SIZE_LIMB) as usize);
 
-                        let mut val = val;
+                        let mut val = val.to_le();
                         for i in limb_order(iter_to) {
                             // The value of the limb.
                             let limb = val & MASK;
@@ -107,7 +108,7 @@ macro_rules! impl_from_prim {
 
                         let mut int = ApInt::with_capacity(capacity);
 
-                        let mut val = val;
+                        let mut val = val.to_le();
                         for i in limb_order(capacity.get()) {
                             // The value of the limb.
                             let limb = val & MASK;
@@ -137,28 +138,32 @@ macro_rules! impl_to_prim {
                 fn from(int: &'a ApInt) -> $ty {
                     const SIZE_TY: usize = core::mem::size_of::<$ty>();
                     const SIZE_LIMB: usize = Limb::SIZE;
-
                     const BITS_LIMB: usize = Limb::BITS;
+                    const SHIFT_LIMB: usize = BITS_LIMB - 1;
 
                     unsafe {
                         match int.storage() {
-                            ApIntStorage::Stack(limb) => limb.repr() as $ty,
-                            ApIntStorage::Heap(ptr) if SIZE_TY <= SIZE_LIMB * int.len.get() => *ptr.cast().as_ptr(),
-                            ApIntStorage::Heap(ptr) => {
-                                // The number of limbs that fit in $ty.
-                                const FACTOR: usize = SIZE_TY / SIZE_LIMB;
-                                // Copy only as many limbs as we have.
-                                let n_copy = int.len.get().min(FACTOR);
+                            ApIntStorage::Stack(limb) => limb.repr_signed() as $ty,
+                            ApIntStorage::Heap(ptr) => match SIZE_LIMB * int.len.get() {
+                                size_int if SIZE_TY <= size_int => <$ty>::from_le(*ptr.as_ptr().cast()),
+                                _ => {
+                                    // The number of limbs that can fit in $t.
+                                    const FACTOR: usize = SIZE_TY / SIZE_LIMB;
+                                    // Copy as many limbs as we have or that can fit in $t.
+                                    let n_copy = int.len.get().min(FACTOR);
 
-                                let mut val = 0;
-                                for (i, j) in limb_order(n_copy).enumerate() {
-                                    let limb = *ptr.as_ptr().add(j);
-                                    let limb = limb.repr() as $ty;
-                                    val |= limb.wrapping_shl((BITS_LIMB * i) as u32);
+                                    // Last limb has the sign.
+                                    let sign_limb = (*ptr.as_ptr().add(int.len.get() - 1)).repr_signed();
+                                    // Propagate the sign across the limb, taking advantage of signed shift.
+                                    let sign_byte = (sign_limb >> SHIFT_LIMB) as u8;
+
+                                    let mut val = MaybeUninit::uninit();
+                                    // Initialise with sign bits.
+                                    core::ptr::write_bytes(val.as_mut_ptr(), sign_byte, 1);
+                                    core::ptr::copy_nonoverlapping(ptr.as_ptr(), val.as_mut_ptr() as *mut Limb, n_copy);
+                                    val.assume_init()
                                 }
-
-                                val
-                            }
+                            },
                         }
                     }
                 }
@@ -174,8 +179,5 @@ macro_rules! impl_to_prim {
     };
 }
 
-#[rustfmt::skip]
-impl_to_prim!(
-    u8, u16, u32, u64, u128, usize,
-    i8, i16, i32, i64, i128, isize,
-);
+impl_to_prim!(u8, u16, u32, u64, u128, usize);
+impl_to_prim!(i8, i16, i32, i64, i128, isize);
