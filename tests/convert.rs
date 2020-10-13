@@ -3,9 +3,9 @@ use apa::ApInt;
 macro_rules! assert_conv {
     ($ty:ident: $($val:expr),* $(,)?) => {
         $({
-            let val = $val as $ty;
+            let val: $ty = $val;
             let int = ApInt::from(val);
-            assert_eq!(<$ty>::from(int), val, concat!("convert equality failed for `", stringify!($val), "`: {}"), $val);
+            assert_eq!(<$ty>::from(int), val, concat!("convert equality failed for `", stringify!($val), "`"));
         })*
     };
 }
