@@ -1,0 +1,74 @@
+name: ci
+on:
+  pull_request:
+  push:
+  schedule:
+    - cron: '00 01 * * *'
+
+env:
+  # Coloured output from Cargo.
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: test
+    env:
+      # Emit backtraces on panics.
+      RUST_BACKTRACE: 1
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        build:
+          - pinned
+          - stable
+          - beta
+          - nightly
+        include:
+          - build: pinned
+            rust: 1.47.0
+          - build: stable
+            rust: stable
+          - build: beta
+            rust: beta
+          - build: nightly
+            rust: nightly
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust }}
+          override: true
+          profile: minimal
+
+      - name: Build
+        run: cargo build --verbose --no-default-features --features std
+
+      - name: Build (no_std)
+        run: cargo build --verbose --no-default-features
+
+      - name: Run tests
+        run: cargo test --verbose --no-default-features --features std
+
+      - name: Run tests (no_std)
+        run: cargo test --verbose --no-default-features
+
+  rustfmt:
+    name: Rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+          profile: minimal
+          components: rustfmt
+
+      - name: Check formatting
+        run: cargo fmt -- --check
