@@ -25,7 +25,7 @@ macro_rules! quickcheck_prims {
     (@convert $ty:ident) => {
         paste::item! {
            #[test]
-           fn [< prop_equivalent_from_ $ty>] () {
+           fn [< prop_equivalent_from_ $ty >] () {
                 fn prop(n: $ty) -> bool {
                     n == <$ty>::from(ApInt::from(n))
                 }
@@ -37,7 +37,7 @@ macro_rules! quickcheck_prims {
         $(
             paste::item! {
                #[test]
-               fn [< prop_equivalent_ $from _as_ $to>] () {
+               fn [< prop_equivalent_ $from _as_ $to >] () {
                     fn prop(n: $from) -> bool {
                         (n as $to) == <$to>::from(ApInt::from(n))
                     }
