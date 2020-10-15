@@ -37,7 +37,7 @@ macro_rules! impl_from_prim {
                         unsafe {
                             core::ptr::copy_nonoverlapping(
                                 &val as *const $ty as *const u8,
-                                int.data.p_value.as_ptr() as *mut u8,
+                                int.data.ptr.as_ptr() as *mut u8,
                                 SIZE_TY.min(capacity.get() * Limb::SIZE),
                             );
                         }
@@ -96,7 +96,7 @@ macro_rules! impl_from_prim {
                         unsafe {
                             core::ptr::copy_nonoverlapping(
                                 &val as *const $ty as *const u8,
-                                int.data.p_value.as_ptr() as *mut u8,
+                                int.data.ptr.as_ptr() as *mut u8,
                                 SIZE_TY.min(capacity.get() * Limb::SIZE),
                             );
                         }

@@ -5,6 +5,10 @@ use core::ptr::NonNull;
 use crate::alloc;
 use crate::limb::Limb;
 
+// TODO: Replace with allocator_api when stabilised.
+
+// FIXME: These alloc/dealloc/realloc functions should really be `unsafe`.
+
 pub fn alloc_limbs(capacity: NonZeroUsize) -> NonNull<Limb> {
     let layout = match Layout::array::<Limb>(capacity.get()) {
         Ok(layout) => layout,
@@ -12,14 +16,13 @@ pub fn alloc_limbs(capacity: NonZeroUsize) -> NonNull<Limb> {
     };
     alloc_guard(layout.size());
 
-    // TODO: Replace with allocator_api when stabilised.
     // SAFETY: This is safe since we have verified the integrity of the layout.
     let ptr = unsafe { alloc::alloc_zeroed(layout) };
     if ptr.is_null() {
         alloc::handle_alloc_error(layout);
     }
 
-    // SAFETY: ptr is guaranteed to be non-null at this point.
+    // SAFETY: `ptr` is guaranteed to be non-null at this point.
     unsafe { NonNull::new_unchecked(ptr.cast()) }
 }
 
@@ -29,10 +32,35 @@ pub fn dealloc_limbs(ptr: NonNull<Limb>, size: NonZeroUsize) {
 
     let size = SIZE * size.get();
 
-    // SAFETY: ptr is already already allocated so we can bypass checks.
+    // SAFETY: `ptr` is already already allocated so we can bypass checks.
     let layout = unsafe { Layout::from_size_align_unchecked(size, ALIGN) };
     // SAFETY: ptr is guaranteed to be non-null and layout is correct.
     unsafe { alloc::dealloc(ptr.cast().as_ptr(), layout) };
+}
+
+pub fn realloc_limbs(
+    ptr: NonNull<Limb>,
+    old_size: NonZeroUsize,
+    new_size: NonZeroUsize,
+) -> NonNull<Limb> {
+    const ALIGN: usize = core::mem::align_of::<Limb>();
+    const SIZE: usize = core::mem::size_of::<Limb>();
+
+    let old_size = SIZE * old_size.get();
+    let new_size = SIZE * new_size.get();
+    alloc_guard(new_size);
+
+    // SAFETY: `ptr` is already already allocated so we can bypass checks.
+    let layout = unsafe { Layout::from_size_align_unchecked(old_size, ALIGN) };
+
+    // SAFETY: This is safe since we have verified the integrity of the layout.
+    let ptr = unsafe { alloc::realloc(ptr.cast().as_ptr(), layout, new_size) };
+    if ptr.is_null() {
+        alloc::handle_alloc_error(layout);
+    }
+
+    // SAFETY: ptr is guaranteed to be non-null at this point.
+    unsafe { NonNull::new_unchecked(ptr.cast()) }
 }
 
 // We need to guarantee the following:
