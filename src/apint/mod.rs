@@ -5,7 +5,11 @@ use core::ptr::{self, NonNull};
 use crate::limb::Limb;
 use crate::mem;
 
+mod cmp;
 mod convert;
+mod num;
+mod ops;
+mod radix;
 
 // SAFETY: This is safe since `1` is non-zero.
 const NZUSIZE_ONE: NonZeroUsize = unsafe { NonZeroUsize::new_unchecked(1) };
