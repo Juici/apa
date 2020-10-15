@@ -68,7 +68,7 @@ macro_rules! impl_from_prim {
 
                     // The number of bits actually required to hold the absolute value plus
                     // an additional sign bit.
-                    let bits_val = BITS_TY - leading;
+                    let bits_val = BITS_TY - leading + 1;
 
                     // Check if the value fits, or can be truncated to fit.
                     if FITS || bits_val <= BITS_LIMB {
