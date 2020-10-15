@@ -16,7 +16,7 @@ categories = []
 keywords = []
 
 [features]
-default = ["std"]
+default = []
 
 std = []
 
