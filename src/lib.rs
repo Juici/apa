@@ -6,6 +6,7 @@
 mod alloc;
 mod apint;
 mod limb;
+mod limbs;
 mod mem;
 
 pub use crate::apint::ApInt;

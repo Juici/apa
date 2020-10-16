@@ -1,7 +1,7 @@
 use core::mem::MaybeUninit;
 use core::num::NonZeroUsize;
 
-use crate::apint::{ApInt, ApIntStorage};
+use crate::apint::{ApInt, LimbData};
 use crate::limb::{Limb, LimbRepr};
 
 macro_rules! impl_from_prim {
@@ -123,9 +123,9 @@ macro_rules! impl_to_prim {
                     const SHIFT_LIMB: usize = BITS_LIMB - 1;
 
                     unsafe {
-                        match int.storage() {
-                            ApIntStorage::Stack(limb) => limb.repr_signed() as $ty,
-                            ApIntStorage::Heap(ptr) => match SIZE_LIMB * int.len.get() {
+                        match int.data() {
+                            LimbData::Stack(limb) => limb.repr_signed() as $ty,
+                            LimbData::Heap(ptr) => match SIZE_LIMB * int.len.get() {
                                 size_int if SIZE_TY <= size_int => <$ty>::from_le(*ptr.as_ptr().cast()),
                                 _ => {
                                     // The number of limbs that can fit in $t.
@@ -134,7 +134,7 @@ macro_rules! impl_to_prim {
                                     let n_copy = int.len.get().min(FACTOR);
 
                                     // Last limb has the sign.
-                                    let sign_limb = (*ptr.as_ptr().add(int.len.get() - 1)).repr_signed();
+                                    let sign_limb = (*ptr.add(int.len.get() - 1)).repr_signed();
                                     // Propagate the sign across the limb, taking advantage of signed shift.
                                     let sign_byte = (sign_limb >> SHIFT_LIMB) as u8;
 

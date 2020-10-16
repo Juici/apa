@@ -1,6 +1,6 @@
 use num_traits::{One, Zero};
 
-use crate::apint::{ApInt, ApIntStorage};
+use crate::apint::{ApInt, LimbData};
 use crate::limb::Limb;
 
 impl Zero for ApInt {
@@ -13,7 +13,7 @@ impl Zero for ApInt {
     }
 
     fn is_zero(&self) -> bool {
-        matches!(self.storage(), ApIntStorage::Stack(Limb::ZERO))
+        matches!(self.data(), LimbData::Stack(Limb::ZERO))
     }
 }
 
@@ -27,6 +27,6 @@ impl One for ApInt {
     }
 
     fn is_one(&self) -> bool {
-        matches!(self.storage(), ApIntStorage::Stack(Limb::ONE))
+        matches!(self.data(), LimbData::Stack(Limb::ONE))
     }
 }

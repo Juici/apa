@@ -1,8 +1,9 @@
-use core::hint;
+use core::marker::PhantomData;
 use core::num::NonZeroUsize;
 use core::ptr::{self, NonNull};
 
 use crate::limb::Limb;
+use crate::limbs::{Limbs, LimbsMut};
 use crate::mem;
 
 mod cmp;
@@ -77,18 +78,19 @@ impl ApInt {
 
 impl Drop for ApInt {
     fn drop(&mut self) {
-        if self.len.get() > 1 {
+        match self.len {
+            NZUSIZE_ONE => {}
             // SAFETY: `ptr` is a valid pointer, since `len > 1`.
-            mem::dealloc_limbs(unsafe { self.data.ptr }, self.len);
+            len => mem::dealloc_limbs(unsafe { self.data.ptr }, len),
         }
     }
 }
 
 impl Clone for ApInt {
     fn clone(&self) -> Self {
-        match self.storage() {
-            ApIntStorage::Stack(value) => ApInt::from_limb(value),
-            ApIntStorage::Heap(src) => {
+        match self.data() {
+            LimbData::Stack(value) => ApInt::from_limb(value),
+            LimbData::Heap(src) => {
                 let n = ApInt::with_capacity(self.len);
 
                 // SAFETY: This safe since `n` is heap allocated.
@@ -102,20 +104,18 @@ impl Clone for ApInt {
     }
 
     fn clone_from(&mut self, source: &Self) {
-        match (self.len.get(), source.len.get()) {
-            // SAFETY: `len` is non-zero.
-            (0, _) | (_, 0) => unsafe { hint::unreachable_unchecked() },
+        match (self.len, source.len) {
             // Both stack allocated.
-            (1, 1) => {
+            (NZUSIZE_ONE, NZUSIZE_ONE) => {
                 // SAFETY: This is safe since both ints are stack allocated.
                 self.data.value = unsafe { source.data.value };
             }
             // Self heap allocated, source stack allocated.
-            (_, 1) => {
+            (dst_len, NZUSIZE_ONE) => {
                 {
                     // SAFETY: This is safe since self is heap allocated.
                     let dst = unsafe { self.data.ptr };
-                    mem::dealloc_limbs(dst, self.len);
+                    mem::dealloc_limbs(dst, dst_len);
                 }
 
                 // SAFETY: This is safe since source is stack allocated.
@@ -123,88 +123,80 @@ impl Clone for ApInt {
                 self.len = NZUSIZE_ONE;
             }
             // Self stack allocated, source heap allocated.
-            (1, src_len) => {
-                let dst = mem::alloc_limbs(source.len);
+            (NZUSIZE_ONE, src_len) => {
+                let dst = mem::alloc_limbs(src_len);
 
                 // SAFETY: This safe since the source is heap allocated.
                 let src = unsafe { source.data.ptr };
                 // SAFETY: This is safe since both ints have the same length.
-                unsafe { ptr::copy_nonoverlapping(src.as_ptr(), dst.as_ptr(), src_len) };
+                unsafe { ptr::copy_nonoverlapping(src.as_ptr(), dst.as_ptr(), src_len.get()) };
 
                 self.data.ptr = dst;
-                self.len = source.len;
+                self.len = src_len;
             }
             // Both heap allocated.
-            (dst_len, src_len) => {
+            (old_len, src_len) => {
                 // SAFETY: This is safe since self is heap allocated.
                 let mut dst = unsafe { self.data.ptr };
-                if src_len != dst_len {
-                    dst = mem::realloc_limbs(dst, self.len, source.len)
+                if old_len != src_len {
+                    dst = mem::realloc_limbs(dst, old_len, src_len)
                 }
 
                 // SAFETY: This safe since the source is heap allocated.
                 let src = unsafe { source.data.ptr };
                 // SAFETY: This is safe since both ints have the same length.
-                unsafe { ptr::copy_nonoverlapping(src.as_ptr(), dst.as_ptr(), src_len) };
+                unsafe { ptr::copy_nonoverlapping(src.as_ptr(), dst.as_ptr(), src_len.get()) };
             }
         }
     }
 }
 
-enum ApIntStorage<'a> {
+pub(crate) enum LimbData<'a> {
     Stack(Limb),
-    Heap(&'a NonNull<Limb>),
+    Heap(Limbs<'a>),
 }
 
-enum ApIntStorageMut<'a> {
+pub(crate) enum LimbDataMut<'a> {
     Stack(&'a mut Limb),
-    Heap(&'a mut NonNull<Limb>),
+    Heap(LimbsMut<'a>),
 }
 
 impl ApInt {
-    // TODO: Replace with a proper API.
-
-    /// Returns a storage accessor for the limb data.
-    #[inline]
-    fn storage(&self) -> ApIntStorage {
-        match self.len.get() {
-            // SAFETY: The len is non-zero.
-            0 => unsafe { hint::unreachable_unchecked() },
+    /// Returns an accessor to the limb data.
+    pub(crate) fn data(&self) -> LimbData {
+        match self.len {
             // SAFETY: A len of 1 guarantees that value is a valid limb.
-            1 => ApIntStorage::Stack(unsafe { self.data.value }),
+            NZUSIZE_ONE => LimbData::Stack(unsafe { self.data.value }),
             // SAFETY: A len greater than 1 guarantees that ptr is a valid pointer.
-            _ => ApIntStorage::Heap(unsafe { &self.data.ptr }),
+            _ => LimbData::Heap(unsafe { self.limbs() }),
         }
     }
 
-    /// Returns a mutable storage accessor for the limb data.
-    #[inline]
-    fn storage_mut(&mut self) -> ApIntStorageMut {
-        match self.len.get() {
-            // SAFETY: The len is non-zero.
-            0 => unsafe { hint::unreachable_unchecked() },
+    /// Returns a mutable accessor to the limb data.
+    pub(crate) fn data_mut(&mut self) -> LimbDataMut {
+        match self.len {
             // SAFETY: A len of 1 guarantees that value is a valid limb.
-            1 => ApIntStorageMut::Stack(unsafe { &mut self.data.value }),
+            NZUSIZE_ONE => LimbDataMut::Stack(unsafe { &mut self.data.value }),
             // SAFETY: A len greater than 1 guarantees that ptr is a valid pointer.
-            _ => ApIntStorageMut::Heap(unsafe { &mut self.data.ptr }),
+            _ => LimbDataMut::Heap(unsafe { self.limbs_mut() }),
         }
     }
 
-    // TODO: Add proper limb accessor/iterator.
-
-    /// Returns the limb at the given index.
-    pub(crate) unsafe fn limb(&self, index: usize) -> Limb {
-        match self.storage() {
-            ApIntStorage::Stack(limb) => limb,
-            ApIntStorage::Heap(ptr) => *ptr.as_ptr().add(index),
-        }
+    /// Returns a pointer accessor to the limb data.
+    ///
+    /// This function doesn't check that the internal data representation is a
+    /// valid pointer.
+    #[inline]
+    pub(crate) unsafe fn limbs(&self) -> Limbs {
+        Limbs::new(self.data.ptr, self.len, &PhantomData)
     }
 
-    /// Returns a mutable reference to the limb at the given index.
-    pub(crate) unsafe fn limb_mut(&mut self, index: usize) -> &mut Limb {
-        match self.storage_mut() {
-            ApIntStorageMut::Stack(limb) => limb,
-            ApIntStorageMut::Heap(ptr) => &mut *ptr.as_ptr().add(index),
-        }
+    /// Returns a mutable pointer accessor to the limb data.
+    ///
+    /// This function doesn't check that the internal data representation is a
+    /// valid pointer.
+    #[inline]
+    pub(crate) unsafe fn limbs_mut(&self) -> LimbsMut {
+        LimbsMut::new(self.data.ptr, self.len, &PhantomData)
     }
 }
