@@ -1,34 +1,40 @@
 use apa::ApInt;
 
+mod qc;
+
 macro_rules! assert_conv {
     ($ty:ident: $($val:expr),* $(,)?) => {
         $({
             let val: $ty = $val;
             let int = ApInt::from(val);
-            assert_eq!(<$ty>::from(int), val, concat!("convert equality failed for `", stringify!($val), "`"));
+            assert_eq!($ty::from(int), val, concat!("convert equality failed for `", stringify!($val), "`"));
         })*
     };
 }
 
-macro_rules! test_prim {
-    ($prim:ident: $fn:ident) => {
-        #[test]
-        fn $fn() {
-            assert_conv!($prim: $prim::MAX, $prim::MIN);
-        }
+macro_rules! test_prims {
+    ($($ty:ident),* $(,)?) => {
+        $(
+            paste::item! {
+                #[test]
+                fn [< from_to_ $ty >] () {
+                    assert_conv!($ty: $ty::MAX, $ty::MIN);
+                }
+
+                #[test]
+                fn [< prop_equivalent_from_ $ty >] () {
+                    fn prop(n: $ty) -> bool {
+                        n == $ty::from(ApInt::from(n))
+                    }
+                    qc::quickcheck(prop as fn($ty) -> bool)
+                }
+            }
+        )*
     };
 }
 
-test_prim!(u8: from_to_u8);
-test_prim!(u16: from_to_u16);
-test_prim!(u32: from_to_u32);
-test_prim!(u64: from_to_u64);
-test_prim!(u128: from_to_u128);
-test_prim!(usize: from_to_usize);
-
-test_prim!(i8: from_to_i8);
-test_prim!(i16: from_to_i16);
-test_prim!(i32: from_to_i32);
-test_prim!(i64: from_to_i64);
-test_prim!(i128: from_to_i128);
-test_prim!(isize: from_to_isize);
+#[rustfmt::skip]
+test_prims!(
+    u8, u16, u32, u64, u128, usize,
+    i8, i16, i32, i64, i128, isize,
+);

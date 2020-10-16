@@ -1,5 +1,7 @@
 use apa::ApInt;
 
+mod qc;
+
 macro_rules! test_cast {
     ($from:ident as $to:ident) => {
         paste::item! {
@@ -43,6 +45,16 @@ macro_rules! test_prims {
     (@test $from:ident as [$($to:ident)*]) => {
         $(
             test_cast!($from as $to);
+
+            paste::item! {
+               #[test]
+               fn [< prop_equivalent_ $from _as_ $to >] () {
+                    fn prop(n: $from) -> bool {
+                        (n as $to) == $to::from(ApInt::from(n))
+                    }
+                    qc::quickcheck(prop as fn($from) -> bool)
+               }
+            }
         )*
     };
 }

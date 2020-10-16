@@ -1,7 +1,9 @@
+use core::fmt;
 use core::marker::PhantomData;
 use core::num::NonZeroUsize;
 use core::ptr::{self, NonNull};
 
+use crate::alloc::Vec;
 use crate::limb::Limb;
 use crate::limbs::{Limbs, LimbsMut};
 use crate::mem;
@@ -148,6 +150,25 @@ impl Clone for ApInt {
                 unsafe { ptr::copy_nonoverlapping(src.as_ptr(), dst.as_ptr(), src_len.get()) };
             }
         }
+    }
+}
+
+impl fmt::Debug for ApInt {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut int = f.debug_struct("ApInt");
+
+        int.field("len", &self.len);
+
+        // TODO: Improve debug implementation.
+        match self.data() {
+            LimbData::Stack(value) => int.field("limbs", &[value]),
+            // SAFETY: `limbs` are for reads up to `len`.
+            LimbData::Heap(limbs) => int.field("limbs", unsafe {
+                &core::slice::from_raw_parts(limbs.as_ptr(), self.len.get())
+            }),
+        };
+
+        int.finish()
     }
 }
 

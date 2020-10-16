@@ -1,11 +1,21 @@
 use apa::ApInt;
 
-#[test]
-fn zero() {
-    assert_eq!(0, usize::from(ApInt::ZERO));
+macro_rules! test_prims {
+    ($name:ident: $val:expr, $int:expr, [$($ty:ident),*]) => {
+        $(
+            paste::item! {
+                #[test]
+                fn [< $name _ $ty >] () {
+                    let int: ApInt = $int;
+                    let val: $ty = $val;
+
+                    assert_eq!(val, $ty::from(&int));
+                    assert_eq!(int, ApInt::from(val));
+                }
+            }
+        )*
+    };
 }
 
-#[test]
-fn one() {
-    assert_eq!(1, usize::from(ApInt::ONE));
-}
+test_prims!(zero: 0, ApInt::ZERO, [u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize]);
+test_prims!(one: 1, ApInt::ONE, [u8, u16, u32, u64, u128, usize, i8, i16, i32, i64, i128, isize]);
