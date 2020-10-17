@@ -62,8 +62,8 @@ impl Ord for ApInt {
                 let r = unsafe { *r_ptr.add(other.len.get() - 1) };
 
                 // Compare sign bits.
-                let l_bit = l.repr() >> SHIFT;
-                let r_bit = r.repr() >> SHIFT;
+                let l_bit = l.repr_ne() >> SHIFT;
+                let r_bit = r.repr_ne() >> SHIFT;
 
                 match (l_bit, r_bit) {
                     (0, 1) => return Ordering::Greater,
@@ -119,7 +119,7 @@ impl Ord for ApInt {
 
                 // The heap value has a larger absolute value, so check its
                 // sign bit.
-                let r_bit = r.repr() >> SHIFT;
+                let r_bit = r.repr_ne() >> SHIFT;
 
                 match r_bit {
                     // Heap value is negative.
@@ -135,7 +135,7 @@ impl Ord for ApInt {
 
                 // The heap value has a larger absolute value, so check its
                 // sign bit.
-                let l_bit = l.repr() >> SHIFT;
+                let l_bit = l.repr_ne() >> SHIFT;
 
                 match l_bit {
                     // Heap value is negative.
