@@ -29,7 +29,7 @@ macro_rules! impl_from_prim {
                         // SAFETY: `factor + 1` is guaranteed to be greater than 1.
                         let capacity = unsafe { NonZeroUsize::new_unchecked(capacity) };
 
-                        let int = ApInt::with_capacity(capacity);
+                        let mut int = ApInt::with_capacity(capacity);
 
                         let val = val.to_le();
                         // SAFETY: This is safe since we are copying as many bytes as the smaller of
@@ -37,7 +37,7 @@ macro_rules! impl_from_prim {
                         unsafe {
                             core::ptr::copy_nonoverlapping(
                                 &val as *const $ty as *const u8,
-                                int.data.ptr.as_ptr() as *mut u8,
+                                int.limbs_mut().as_ptr() as *mut u8,
                                 SIZE_TY.min(capacity.get() * SIZE_LIMB),
                             );
                         }
@@ -88,7 +88,7 @@ macro_rules! impl_from_prim {
                         //          since `bits_val` >= `BITS_LIMB`.
                         let capacity = unsafe { NonZeroUsize::new_unchecked(capacity) };
 
-                        let int = ApInt::with_capacity(capacity);
+                        let mut int = ApInt::with_capacity(capacity);
 
                         let val = val.to_le();
                         // SAFETY: This is safe since we are copying as many bytes as the smaller of
@@ -96,7 +96,7 @@ macro_rules! impl_from_prim {
                         unsafe {
                             core::ptr::copy_nonoverlapping(
                                 &val as *const $ty as *const u8,
-                                int.data.ptr.as_ptr() as *mut u8,
+                                int.limbs_mut().as_ptr() as *mut u8,
                                 SIZE_TY.min(capacity.get() * SIZE_LIMB),
                             );
                         }

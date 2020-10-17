@@ -216,7 +216,7 @@ impl ApInt {
     /// This function doesn't check that the internal data representation is a
     /// valid pointer.
     #[inline]
-    pub(crate) unsafe fn limbs_mut(&self) -> LimbsMut {
+    pub(crate) unsafe fn limbs_mut(&mut self) -> LimbsMut {
         LimbsMut::new(self.data.ptr, self.len, &PhantomData)
     }
 }
