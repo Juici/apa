@@ -92,7 +92,7 @@ impl Ord for ApInt {
                     let l = unsafe { *l_ptr.add(i as usize) };
                     // SAFETY: `i` is within the bounds of `r_ptr`.
                     let r = unsafe { *r_ptr.add(i as usize) };
-                    match l.cmp(&r) {
+                    match l.repr_ne().cmp(&r.repr_ne()) {
                         Ordering::Equal => {}
                         ordering => return ordering,
                     }

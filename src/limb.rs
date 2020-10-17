@@ -36,10 +36,17 @@ impl Limb {
         self.0
     }
 
-    /// Returns the value of the internal representation.
+    /// Returns the signed value of the internal representation.
     #[inline]
     pub fn repr_signed(self) -> LimbReprSigned {
         self.0 as LimbReprSigned
+    }
+
+    /// Returns the value of the internal representation in native-endian.
+    ///
+    /// This assumes that the limb is currently in little-endian.
+    pub fn repr_ne(self) -> LimbRepr {
+        LimbRepr::from_le(self.repr())
     }
 
     /// Calculates `self` + `other`.

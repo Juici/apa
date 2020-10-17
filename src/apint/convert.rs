@@ -5,7 +5,7 @@ use crate::apint::{ApInt, LimbData};
 use crate::limb::{Limb, LimbRepr};
 
 macro_rules! impl_from_prim {
-    (unsigned: $($ty:ty),* $(,)?) => {
+    (unsigned: $($ty:ident),* $(,)?) => {
         $(
             impl core::convert::From<$ty> for ApInt {
                 fn from(val: $ty) -> ApInt {
@@ -113,7 +113,7 @@ impl_from_prim!(unsigned: u8, u16, u32, u64, u128, usize);
 impl_from_prim!(signed: i8, i16, i32, i64, i128, isize);
 
 macro_rules! impl_to_prim {
-    ($($ty:ty),* $(,)?) => {
+    ($($ty:ident),* $(,)?) => {
         $(
             impl<'a> core::convert::From<&'a ApInt> for $ty {
                 fn from(int: &'a ApInt) -> $ty {
@@ -126,7 +126,7 @@ macro_rules! impl_to_prim {
                         match int.data() {
                             LimbData::Stack(limb) => limb.repr_signed() as $ty,
                             LimbData::Heap(ptr) => match SIZE_LIMB * int.len.get() {
-                                size_int if SIZE_TY <= size_int => <$ty>::from_le(*ptr.as_ptr().cast()),
+                                size_int if SIZE_TY <= size_int => $ty::from_le(*ptr.as_ptr().cast()),
                                 _ => {
                                     // The number of limbs that can fit in $t.
                                     const FACTOR: usize = SIZE_TY / SIZE_LIMB;
@@ -142,7 +142,7 @@ macro_rules! impl_to_prim {
                                     // Initialise with sign bits.
                                     core::ptr::write_bytes(val.as_mut_ptr(), sign_byte, 1);
                                     core::ptr::copy_nonoverlapping(ptr.as_ptr(), val.as_mut_ptr() as *mut Limb, n_copy);
-                                    val.assume_init()
+                                    $ty::from_le(val.assume_init())
                                 }
                             },
                         }
@@ -153,7 +153,7 @@ macro_rules! impl_to_prim {
             impl core::convert::From<ApInt> for $ty {
                 #[inline]
                 fn from(int: ApInt) -> $ty {
-                    <$ty>::from(&int)
+                    $ty::from(&int)
                 }
             }
         )*
