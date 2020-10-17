@@ -172,6 +172,8 @@ mod tests {
         }};
     }
 
+    // TODO: Document the branches that these tests cover.
+
     #[test]
     fn stack_stack_pos_pos() {
         let l = ApInt::from(11212);
