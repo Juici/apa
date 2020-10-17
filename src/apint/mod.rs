@@ -3,7 +3,6 @@ use core::marker::PhantomData;
 use core::num::NonZeroUsize;
 use core::ptr::{self, NonNull};
 
-use crate::alloc::Vec;
 use crate::limb::Limb;
 use crate::limbs::{Limbs, LimbsMut};
 use crate::mem;
