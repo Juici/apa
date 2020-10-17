@@ -74,11 +74,18 @@ impl Ord for ApInt {
                 // Same sign bits, compare number of limbs.
                 match self.len.cmp(&other.len) {
                     Ordering::Equal => {}
-                    ordering => return ordering,
+                    // Positive sign bit.
+                    ordering if l_bit == 0 => return ordering,
+                    // Negative sign bit.
+                    ordering => return ordering.reverse(),
                 }
 
                 // At this point it is guaranteed that both ints have the same
                 // number of limbs.
+                //
+                // Sign doesn't matter anymore and we can
+                // compare each limb as unsigned values, due to how numbers are
+                // represented in two's complement.
 
                 let mut i = (self.len.get() - 1) as isize;
 
@@ -138,5 +145,211 @@ impl Ord for ApInt {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use core::cmp::Ordering;
+    use core::num::NonZeroUsize;
+
+    macro_rules! assert_cmp {
+        ($l:expr, $r:expr, $ord:ident) => {{
+            let result = $l.cmp(&$r);
+            assert!(
+                result == Ordering::$ord,
+                concat!(
+                    "comparison failed:\nleft: {:?}\nright: {:?}\nexpected: ",
+                    stringify!($ord),
+                    "\nresult: {:?}",
+                ),
+                $l,
+                $r,
+                result
+            );
+        }};
+    }
+
+    #[test]
+    fn stack_stack_pos_pos() {
+        let l = ApInt::from(11212);
+        let r = ApInt::from(32142);
+        assert_cmp!(l, r, Less);
+    }
+
+    #[test]
+    fn stack_stack_neg_neg() {
+        let l = ApInt::from(-1241);
+        let r = ApInt::from(-35351);
+        assert_cmp!(l, r, Greater);
+    }
+
+    #[test]
+    fn stack_stack_pos_neg() {
+        let l = ApInt::from(21241);
+        let r = ApInt::from(-35351);
+        assert_cmp!(l, r, Greater);
+    }
+
+    #[test]
+    fn stack_stack_neg_pos() {
+        let l = ApInt::from(-15241);
+        let r = ApInt::from(5351);
+        assert_cmp!(l, r, Less);
+    }
+
+    #[test]
+    fn stack_heap_pos() {
+        let l = ApInt::from(11212);
+        let r = ApInt::from(i128::MAX);
+        assert_cmp!(l, r, Less);
+    }
+
+    #[test]
+    fn stack_heap_neg() {
+        let l = ApInt::from(11212);
+        let r = ApInt::from(i128::MIN);
+        assert_cmp!(l, r, Greater);
+    }
+
+    #[test]
+    fn heap_stack_pos() {
+        let l = ApInt::from(i128::MAX);
+        let r = ApInt::from(11212);
+        assert_cmp!(l, r, Greater);
+    }
+
+    #[test]
+    fn heap_stack_neg() {
+        let l = ApInt::from(i128::MIN);
+        let r = ApInt::from(11212);
+        assert_cmp!(l, r, Less);
+    }
+
+    #[test]
+    fn heap_heap_pos_neg() {
+        let l = ApInt::from(u128::MAX);
+        let r = ApInt::from(i128::MIN);
+        assert_cmp!(l, r, Greater);
+    }
+
+    #[test]
+    fn heap_heap_neg_pos() {
+        let l = ApInt::from(i128::MIN);
+        let r = ApInt::from(i128::MAX);
+        assert_cmp!(l, r, Less);
+    }
+
+    #[test]
+    fn heap_heap_neg_pos_2_3() {
+        #[cfg(target_pointer_width = "32")]
+        let l = ApInt::from(i64::MIN);
+        #[cfg(target_pointer_width = "64")]
+        let l = ApInt::from(i128::MIN);
+
+        #[cfg(target_pointer_width = "32")]
+        let r = ApInt::from(u64::MAX);
+        #[cfg(target_pointer_width = "64")]
+        let r = ApInt::from(u128::MAX);
+
+        assert_cmp!(l, r, Less);
+    }
+
+    // FIXME: Replace raw byte writing to set ApInt when API allows for it.
+
+    #[test]
+    fn heap_heap_neg_pos_3_2() {
+        let l = unsafe {
+            let mut l = ApInt::with_capacity(NonZeroUsize::new_unchecked(3));
+            core::ptr::write_bytes(l.limbs_mut().as_ptr(), 0xff, 3);
+            l
+        };
+
+        #[cfg(target_pointer_width = "32")]
+        let r = ApInt::from(i64::MAX);
+        #[cfg(target_pointer_width = "64")]
+        let r = ApInt::from(i128::MAX);
+
+        assert_cmp!(l, r, Less);
+    }
+
+    #[test]
+    fn heap_heap_pos_neg_2_3() {
+        #[cfg(target_pointer_width = "32")]
+        let l = ApInt::from(i64::MAX);
+        #[cfg(target_pointer_width = "64")]
+        let l = ApInt::from(i128::MAX);
+
+        let r = unsafe {
+            let mut r = ApInt::with_capacity(NonZeroUsize::new_unchecked(3));
+            core::ptr::write_bytes(r.limbs_mut().as_ptr(), 0xff, 3);
+            r
+        };
+
+        assert_cmp!(l, r, Greater);
+    }
+
+    #[test]
+    fn heap_heap_neg_neg_2_3() {
+        #[cfg(target_pointer_width = "32")]
+        let l = ApInt::from(i64::MIN);
+        #[cfg(target_pointer_width = "64")]
+        let l = ApInt::from(i128::MIN);
+
+        let r = unsafe {
+            let mut r = ApInt::with_capacity(NonZeroUsize::new_unchecked(3));
+            core::ptr::write_bytes(r.limbs_mut().as_ptr(), 0xff, 3);
+            r
+        };
+
+        assert_cmp!(l, r, Greater);
+    }
+
+    #[test]
+    fn heap_heap_neg_neg_3_2() {
+        let l = unsafe {
+            let mut l = ApInt::with_capacity(NonZeroUsize::new_unchecked(3));
+            core::ptr::write_bytes(l.limbs_mut().as_ptr(), 0xff, 3);
+            l
+        };
+
+        #[cfg(target_pointer_width = "32")]
+        let r = ApInt::from(i64::MIN);
+        #[cfg(target_pointer_width = "64")]
+        let r = ApInt::from(i128::MIN);
+
+        assert_cmp!(l, r, Less);
+    }
+
+    #[test]
+    fn heap_heap_pos_pos_2_3() {
+        #[cfg(target_pointer_width = "32")]
+        let l = ApInt::from(i64::MAX);
+        #[cfg(target_pointer_width = "64")]
+        let l = ApInt::from(i128::MAX);
+
+        #[cfg(target_pointer_width = "32")]
+        let r = ApInt::from(u64::MAX);
+        #[cfg(target_pointer_width = "64")]
+        let r = ApInt::from(u128::MAX);
+
+        assert_cmp!(l, r, Less);
+    }
+
+    #[test]
+    fn heap_heap_pos_pos_3_2() {
+        #[cfg(target_pointer_width = "32")]
+        let l = ApInt::from(u64::MAX);
+        #[cfg(target_pointer_width = "64")]
+        let l = ApInt::from(u128::MAX);
+
+        #[cfg(target_pointer_width = "32")]
+        let r = ApInt::from(i64::MAX);
+        #[cfg(target_pointer_width = "64")]
+        let r = ApInt::from(i128::MAX);
+
+        assert_cmp!(l, r, Greater);
     }
 }
