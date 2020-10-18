@@ -153,13 +153,23 @@ impl<'a> LimbsMut<'a> {
 
         // Check bounds don't overlap.
         debug_assert!(
-            !self.bounds.is_overlapping(src.bounds),
+            self.bounds.is_nonoverlapping(src.bounds),
             "limbs overlap:\ndst: {:?}\nsrc: {:?}",
             self,
             src
         );
 
         ptr::copy_nonoverlapping(src.as_ptr(), self.as_ptr(), count.get());
+    }
+
+    /// Sets the bytes of `count` limbs to `val`.
+    #[inline]
+    pub unsafe fn write_bytes(&mut self, val: u8, count: usize) {
+        // Check destination can be dereferenced for the whole range of count.
+        debug_assert!(self.bounds.can_deref(self.as_ptr() as usize));
+        debug_assert!(self.bounds.is_valid_offset(self.as_ptr() as usize, count));
+
+        ptr::write_bytes(self.as_ptr(), val, count);
     }
 }
 
@@ -200,8 +210,8 @@ impl Bounds {
         }
     }
 
-    const fn is_overlapping(self, other: Bounds) -> bool {
-        (self.lo > other.lo && self.lo < other.hi) || (self.hi > other.lo && self.hi < other.hi)
+    const fn is_nonoverlapping(self, other: Bounds) -> bool {
+        self.hi < other.lo || self.lo > other.hi
     }
 }
 
@@ -225,8 +235,8 @@ impl Bounds {
     }
 
     #[inline(always)]
-    const fn is_overlapping(self, _other: Bounds) -> bool {
-        false
+    const fn is_nonoverlapping(self, _other: Bounds) -> bool {
+        true
     }
 }
 
