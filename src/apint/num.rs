@@ -33,6 +33,8 @@ impl One for ApInt {
     }
 }
 
+// TODO: Implement Num for ApInt.
+
 impl FromPrimitive for ApInt {
     fn from_isize(n: isize) -> Option<ApInt> {
         Some(From::from(n))
