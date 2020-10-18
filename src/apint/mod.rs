@@ -1,7 +1,7 @@
 use core::fmt;
 use core::marker::PhantomData;
 use core::num::NonZeroUsize;
-use core::ptr::{self, NonNull};
+use core::ptr::NonNull;
 
 use crate::limb::Limb;
 use crate::limbs::{Limbs, LimbsMut};
@@ -69,7 +69,8 @@ impl ApInt {
             "allocating `ApInt` with capacity 1 is not supported"
         );
 
-        let ptr = mem::alloc_limbs(capacity);
+        // SAFETY: This is safe since we will track this allocation.
+        let ptr = unsafe { mem::alloc_limbs(capacity) };
         ApInt {
             len: capacity,
             data: ApIntData { ptr },
@@ -82,7 +83,7 @@ impl Drop for ApInt {
         match self.len {
             NZUSIZE_ONE => {}
             // SAFETY: `ptr` is a valid pointer, since `len > 1`.
-            len => mem::dealloc_limbs(unsafe { self.data.ptr }, len),
+            len => unsafe { mem::dealloc_limbs(self.data.ptr, len) },
         }
     }
 }
@@ -92,12 +93,11 @@ impl Clone for ApInt {
         match self.data() {
             LimbData::Stack(value) => ApInt::from_limb(value),
             LimbData::Heap(src) => {
-                let n = ApInt::with_capacity(self.len);
+                let mut n = ApInt::with_capacity(self.len);
 
-                // SAFETY: This safe since `n` is heap allocated.
-                let dst = unsafe { n.data.ptr };
-                // SAFETY: `src` and `dst` are valid pointers for `len` limbs.
-                unsafe { ptr::copy_nonoverlapping(src.as_ptr(), dst.as_ptr(), self.len.get()) };
+                // SAFETY: This is safe since `n` and `self` have the same
+                //         number of limbs and do not overlap.
+                unsafe { n.limbs_mut().copy_nonoverlapping(src, self.len) };
 
                 n
             }
@@ -113,11 +113,8 @@ impl Clone for ApInt {
             }
             // Self heap allocated, source stack allocated.
             (dst_len, NZUSIZE_ONE) => {
-                {
-                    // SAFETY: This is safe since self is heap allocated.
-                    let dst = unsafe { self.data.ptr };
-                    mem::dealloc_limbs(dst, dst_len);
-                }
+                // SAFETY: This is safe since self is heap allocated and has length `dst_len`.
+                unsafe { mem::dealloc_limbs(self.data.ptr, dst_len) };
 
                 // SAFETY: This is safe since source is stack allocated.
                 self.data.value = unsafe { source.data.value };
@@ -125,28 +122,33 @@ impl Clone for ApInt {
             }
             // Self stack allocated, source heap allocated.
             (NZUSIZE_ONE, src_len) => {
-                let dst = mem::alloc_limbs(src_len);
-
-                // SAFETY: This safe since the source is heap allocated.
-                let src = unsafe { source.data.ptr };
-                // SAFETY: This is safe since both ints have the same length.
-                unsafe { ptr::copy_nonoverlapping(src.as_ptr(), dst.as_ptr(), src_len.get()) };
+                // SAFETY: This is safe since we will track this allocation.
+                let dst = unsafe { mem::alloc_limbs(src_len) };
 
                 self.data.ptr = dst;
                 self.len = src_len;
+
+                // SAFETY: This is safe since `self` and `source` have the same
+                //         number of limbs and do not overlap.
+                unsafe {
+                    self.limbs_mut()
+                        .copy_nonoverlapping(source.limbs(), src_len);
+                }
             }
             // Both heap allocated.
             (old_len, src_len) => {
-                // SAFETY: This is safe since self is heap allocated.
-                let mut dst = unsafe { self.data.ptr };
+                // Reallocate destination if lengths differ.
                 if old_len != src_len {
-                    dst = mem::realloc_limbs(dst, old_len, src_len)
+                    // SAFETY: This is safe since self is heap allocated and has length `old_len`.
+                    unsafe { self.data.ptr = mem::realloc_limbs(self.data.ptr, old_len, src_len) };
                 }
 
-                // SAFETY: This safe since the source is heap allocated.
-                let src = unsafe { source.data.ptr };
-                // SAFETY: This is safe since both ints have the same length.
-                unsafe { ptr::copy_nonoverlapping(src.as_ptr(), dst.as_ptr(), src_len.get()) };
+                // SAFETY: This is safe since `self` and `source` have the same
+                //         number of limbs and do not overlap.
+                unsafe {
+                    self.limbs_mut()
+                        .copy_nonoverlapping(source.limbs(), src_len);
+                }
             }
         }
     }
@@ -183,6 +185,7 @@ pub(crate) enum LimbDataMut<'a> {
 
 impl ApInt {
     /// Returns an accessor to the limb data.
+    #[inline]
     pub(crate) fn data(&self) -> LimbData {
         match self.len {
             // SAFETY: A len of 1 guarantees that value is a valid limb.
@@ -193,6 +196,7 @@ impl ApInt {
     }
 
     /// Returns a mutable accessor to the limb data.
+    #[inline]
     pub(crate) fn data_mut(&mut self) -> LimbDataMut {
         match self.len {
             // SAFETY: A len of 1 guarantees that value is a valid limb.

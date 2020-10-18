@@ -6,7 +6,7 @@ use core::fmt;
 use core::marker::PhantomData;
 use core::num::NonZeroUsize;
 use core::ops::{Deref, DerefMut};
-use core::ptr::NonNull;
+use core::ptr::{self, NonNull};
 
 use crate::limb::Limb;
 
@@ -30,6 +30,7 @@ macro_rules! impl_limbs {
             /// Creates a new limbs pointer, pointing at `ptr` valid to `ptr.add(len)`.
             ///
             /// The pointer is valid for the lifetime of the `PhantomData`.
+            #[inline]
             pub unsafe fn new(
                 ptr: NonNull<Limb>,
                 len: NonZeroUsize,
@@ -50,7 +51,7 @@ macro_rules! impl_limbs {
             #[inline]
             pub unsafe fn add(self, count: usize) -> $ty<$lifetime> {
                 debug_assert!(
-                    self.bounds.is_valid_offset(self.ptr.as_ptr() as usize, count),
+                    self.bounds.is_valid_offset(self.as_ptr() as usize, count),
                     "invalid offset `{}` from `{:?}`, should be in bounds: {:?}",
                     count, self.ptr, self.bounds,
                 );
@@ -64,12 +65,14 @@ macro_rules! impl_limbs {
             }
 
             /// Returns the internal raw pointer.
+            #[inline(always)]
             pub const fn as_ptr(self) -> $ptr {
                 self.ptr.as_ptr() as $ptr
             }
         }
 
         impl<$lifetime> PartialEq for $ty<$lifetime> {
+            #[inline]
             fn eq(&self, other: &$ty<$lifetime>) -> bool {
                 self.ptr == other.ptr
             }
@@ -77,11 +80,13 @@ macro_rules! impl_limbs {
         impl<$lifetime> Eq for $ty<$lifetime> {}
 
         impl<$lifetime> PartialOrd for $ty<$lifetime> {
+            #[inline]
             fn partial_cmp(&self, other: &$ty<$lifetime>) -> Option<Ordering> {
                 self.ptr.partial_cmp(&other.ptr)
             }
         }
         impl<$lifetime> Ord for $ty<$lifetime> {
+            #[inline]
             fn cmp(&self, other: &$ty<$lifetime>) -> Ordering {
                 self.ptr.cmp(&other.ptr)
             }
@@ -90,9 +95,10 @@ macro_rules! impl_limbs {
         impl<$lifetime> Deref for $ty<$lifetime> {
             type Target = Limb;
 
+            #[inline]
             fn deref(&self) -> &Limb {
                 debug_assert!(
-                    self.bounds.can_deref(self.ptr.as_ptr() as usize),
+                    self.bounds.can_deref(self.as_ptr() as usize),
                     "invalid deref of `{:?}`, should be in bounds: {:?}",
                     self.ptr, self.bounds,
                 );
@@ -107,6 +113,7 @@ impl_limbs!(Limbs<'a>, *const Limb);
 impl_limbs!(LimbsMut<'a>, *mut Limb);
 
 impl<'a> DerefMut for LimbsMut<'a> {
+    #[inline]
     fn deref_mut(&mut self) -> &mut Limb {
         // SAFETY: `ptr` is guaranteed to be non-null.
         unsafe { self.ptr.as_mut() }
@@ -117,12 +124,52 @@ impl<'a> LimbsMut<'a> {
     /// Returns a constant view of limbs.
     ///
     /// Equivalent to a cast from `*mut Limb` to `*const Limb`.
-    pub fn as_const(self) -> Limbs<'a> {
+    #[inline]
+    pub const fn as_const(self) -> Limbs<'a> {
         Limbs {
             ptr: self.ptr,
             bounds: self.bounds,
             _marker: self._marker,
         }
+    }
+
+    /// Copy `count` limbs from `src` to `self`.
+    ///
+    /// `src` and `self` must *not* overlap.
+    #[inline]
+    pub unsafe fn copy_nonoverlapping(&mut self, src: Limbs, count: NonZeroUsize) {
+        // Check source and destination can be dereferenced for the whole range
+        // of count.
+        debug_assert!(self.bounds.can_deref(self.as_ptr() as usize));
+        debug_assert!(
+            self.bounds
+                .is_valid_offset(self.as_ptr() as usize, count.get())
+        );
+        debug_assert!(src.bounds.can_deref(src.as_ptr() as usize));
+        debug_assert!(
+            src.bounds
+                .is_valid_offset(src.as_ptr() as usize, count.get())
+        );
+
+        // Check bounds don't overlap.
+        debug_assert!(
+            self.bounds.is_nonoverlapping(src.bounds),
+            "limbs overlap:\ndst: {:?}\nsrc: {:?}",
+            self,
+            src
+        );
+
+        ptr::copy_nonoverlapping(src.as_ptr(), self.as_ptr(), count.get());
+    }
+
+    /// Sets the bytes of `count` limbs to `val`.
+    #[inline]
+    pub unsafe fn write_bytes(&mut self, val: u8, count: usize) {
+        // Check destination can be dereferenced for the whole range of count.
+        debug_assert!(self.bounds.can_deref(self.as_ptr() as usize));
+        debug_assert!(self.bounds.is_valid_offset(self.as_ptr() as usize, count));
+
+        ptr::write_bytes(self.as_ptr(), val, count);
     }
 }
 
@@ -162,21 +209,33 @@ impl Bounds {
             None => false,
         }
     }
+
+    const fn is_nonoverlapping(self, other: Bounds) -> bool {
+        self.hi < other.lo || self.lo > other.hi
+    }
 }
 
 // Optimise out bounds checks in release builds.
 
 #[cfg(not(debug_assertions))]
 impl Bounds {
+    #[inline(always)]
     const fn new(_ptr: usize, _len: NonZeroUsize) -> Bounds {
         Bounds
     }
 
+    #[inline(always)]
     const fn can_deref(self, _ptr: usize) -> bool {
         true
     }
 
+    #[inline(always)]
     const fn is_valid_offset(self, _ptr: usize, _offset: usize) -> bool {
+        true
+    }
+
+    #[inline(always)]
+    const fn is_nonoverlapping(self, _other: Bounds) -> bool {
         true
     }
 }
