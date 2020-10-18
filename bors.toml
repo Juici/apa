@@ -1,0 +1,10 @@
+status = [
+    "test (pinned)",
+    "test (stable)",
+    "test (beta)",
+    "test (nightly)",
+    "test (nightly-32)",
+    "test (nightly-mips)",
+    "test (nightly-arm)",
+    "rustfmt",
+]
