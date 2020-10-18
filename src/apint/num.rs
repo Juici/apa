@@ -33,6 +33,8 @@ impl One for ApInt {
     }
 }
 
+// TODO: Implement Num for ApInt.
+
 impl FromPrimitive for ApInt {
     fn from_isize(n: isize) -> Option<ApInt> {
         Some(From::from(n))
@@ -110,7 +112,7 @@ macro_rules! to_int {
             // Stack allocated int can use a direct ToPrimitive call.
             LimbData::Stack(value) => value.repr_signed().$conv(),
             // Heap allocated int requires some checks.
-            LimbData::Heap(ptr) => match $self.len.get() {
+            LimbData::Heap(_) => match $self.len.get() {
                 // Fewer than or exactly `LEN` limbs.
                 0..=LEN => Some(From::from($self)),
                 // The int value doesn't fit within a $ty.
@@ -162,7 +164,7 @@ impl ToPrimitive for ApInt {
     fn to_i64(&self) -> Option<i64> {
         #[cfg(target_pointer_width = "32")]
         {
-            to_int!(self, i64)
+            to_int!(self, i64, to_i64)
         }
 
         #[cfg(target_pointer_width = "64")]
@@ -172,7 +174,7 @@ impl ToPrimitive for ApInt {
     }
 
     fn to_i128(&self) -> Option<i128> {
-        to_int!(self, i128)
+        to_int!(self, i128, to_i128)
     }
 
     fn to_usize(&self) -> Option<usize> {

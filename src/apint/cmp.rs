@@ -265,7 +265,7 @@ mod tests {
     fn heap_heap_neg_pos_3_2() {
         let l = unsafe {
             let mut l = ApInt::with_capacity(NonZeroUsize::new_unchecked(3));
-            core::ptr::write_bytes(l.limbs_mut().as_ptr(), 0xff, 3);
+            l.limbs_mut().write_bytes(0xff, 3);
             l
         };
 
@@ -286,7 +286,7 @@ mod tests {
 
         let r = unsafe {
             let mut r = ApInt::with_capacity(NonZeroUsize::new_unchecked(3));
-            core::ptr::write_bytes(r.limbs_mut().as_ptr(), 0xff, 3);
+            r.limbs_mut().write_bytes(0xff, 3);
             r
         };
 
@@ -302,7 +302,7 @@ mod tests {
 
         let r = unsafe {
             let mut r = ApInt::with_capacity(NonZeroUsize::new_unchecked(3));
-            core::ptr::write_bytes(r.limbs_mut().as_ptr(), 0xff, 3);
+            r.limbs_mut().write_bytes(0xff, 3);
             r
         };
 
@@ -313,7 +313,7 @@ mod tests {
     fn heap_heap_neg_neg_3_2() {
         let l = unsafe {
             let mut l = ApInt::with_capacity(NonZeroUsize::new_unchecked(3));
-            core::ptr::write_bytes(l.limbs_mut().as_ptr(), 0xff, 3);
+            l.limbs_mut().write_bytes(0xff, 3);
             l
         };
 
