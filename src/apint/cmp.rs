@@ -9,10 +9,11 @@ impl PartialEq for ApInt {
             // Compare stack values.
             (LimbData::Stack(l), LimbData::Stack(r)) => l == r,
             // Compare heap limbs.
-            (LimbData::Heap(l_ptr), LimbData::Heap(r_ptr)) if self.len == other.len => {
-                let mut i = (self.len.get() - 1) as isize;
-                // No need to check at start of loop, since `len - 1 >= 0` is
-                // guaranteed.
+            (LimbData::Heap(l_ptr, l_len), LimbData::Heap(r_ptr, r_len)) if l_len == r_len => {
+                // Both ints have the same number of limbs.
+                let mut i = (l_len.get() - 1) as isize;
+                // No need to check at start of loop since `len` is non-zero, so
+                // `len - 1 >= 0` is guaranteed.
                 loop {
                     // At this point `i >= 0` is guaranteed, so casting to
                     // usize will not overflow.
@@ -55,11 +56,11 @@ impl Ord for ApInt {
             // Compare stack values.
             (LimbData::Stack(l), LimbData::Stack(r)) => l.repr_signed().cmp(&r.repr_signed()),
             // Compare heap limbs.
-            (LimbData::Heap(l_ptr), LimbData::Heap(r_ptr)) => {
-                // SAFETY: `i` is within the bounds of `l_ptr`.
-                let l = unsafe { *l_ptr.add(self.len.get() - 1) };
-                // SAFETY: `i` is within the bounds of `r_ptr`.
-                let r = unsafe { *r_ptr.add(other.len.get() - 1) };
+            (LimbData::Heap(l_ptr, l_len), LimbData::Heap(r_ptr, r_len)) => {
+                // SAFETY: `l_len - 1` is a valid offset from `l_ptr`.
+                let l = unsafe { *l_ptr.add(l_len.get() - 1) };
+                // SAFETY: `r_len - 1` is a valid offset from `r_ptr`.
+                let r = unsafe { *r_ptr.add(r_len.get() - 1) };
 
                 // Compare sign bits.
                 let l_bit = l.repr_ne() >> SHIFT;
@@ -113,9 +114,9 @@ impl Ord for ApInt {
                 }
             }
             // Different representations.
-            (LimbData::Stack(_l), LimbData::Heap(r_ptr)) => {
-                // SAFETY: `len - 1` is within the bounds of `r_ptr`.
-                let r = unsafe { *r_ptr.add(other.len.get() - 1) };
+            (LimbData::Stack(_l), LimbData::Heap(r_ptr, r_len)) => {
+                // SAFETY: `r_len - 1` is a valid offset from `r_ptr`.
+                let r = unsafe { *r_ptr.add(r_len.get() - 1) };
 
                 // The heap value has a larger absolute value, so check its
                 // sign bit.
@@ -129,9 +130,9 @@ impl Ord for ApInt {
                 }
             }
             // Different representations.
-            (LimbData::Heap(l_ptr), LimbData::Stack(_r)) => {
-                // SAFETY: `len - 1` is within the bounds of `l_ptr`.
-                let l = unsafe { *l_ptr.add(self.len.get() - 1) };
+            (LimbData::Heap(l_ptr, l_len), LimbData::Stack(_r)) => {
+                // SAFETY: `l_len - 1` is a valid offset from `l_ptr`.
+                let l = unsafe { *l_ptr.add(l_len.get() - 1) };
 
                 // The heap value has a larger absolute value, so check its
                 // sign bit.
