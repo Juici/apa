@@ -112,7 +112,7 @@ macro_rules! to_int {
             // Stack allocated int can use a direct ToPrimitive call.
             LimbData::Stack(value) => value.repr_signed().$conv(),
             // Heap allocated int requires some checks.
-            LimbData::Heap(_) => match $self.len.get() {
+            LimbData::Heap(_, len) => match len.get() {
                 // Fewer than or exactly `LEN` limbs.
                 0..=LEN => Some(From::from($self)),
                 // The int value doesn't fit within a $ty.
@@ -131,7 +131,7 @@ macro_rules! to_uint {
             // Stack allocated int can use a direct ToPrimitive call.
             LimbData::Stack(value) => value.repr_signed().$conv(),
             // Heap allocated int requires some checks.
-            LimbData::Heap(ptr) => match $self.len.get() {
+            LimbData::Heap(ptr, len) => match len.get() {
                 // Fewer than `LEN` limbs.
                 0..=LEN_M1 => Some(From::from($self)),
                 // Has `LEN` limbs, but last limb is zero.

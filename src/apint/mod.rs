@@ -92,12 +92,12 @@ impl Clone for ApInt {
     fn clone(&self) -> Self {
         match self.data() {
             LimbData::Stack(value) => ApInt::from_limb(value),
-            LimbData::Heap(src) => {
-                let mut n = ApInt::with_capacity(self.len);
+            LimbData::Heap(src, len) => {
+                let mut n = ApInt::with_capacity(len);
 
                 // SAFETY: This is safe since `n` and `self` have the same
                 //         number of limbs and do not overlap.
-                unsafe { n.limbs_mut().copy_nonoverlapping(src, self.len) };
+                unsafe { n.limbs_mut().copy_nonoverlapping(src, len) };
 
                 n
             }
@@ -164,8 +164,8 @@ impl fmt::Debug for ApInt {
         match self.data() {
             LimbData::Stack(value) => int.field("limbs", &[value]),
             // SAFETY: `limbs` are for reads up to `len`.
-            LimbData::Heap(limbs) => int.field("limbs", unsafe {
-                &core::slice::from_raw_parts(limbs.as_ptr(), self.len.get())
+            LimbData::Heap(limbs, len) => int.field("limbs", unsafe {
+                &core::slice::from_raw_parts(limbs.as_ptr(), len.get())
             }),
         };
 
@@ -175,12 +175,12 @@ impl fmt::Debug for ApInt {
 
 pub(crate) enum LimbData<'a> {
     Stack(Limb),
-    Heap(Limbs<'a>),
+    Heap(Limbs<'a>, NonZeroUsize),
 }
 
 pub(crate) enum LimbDataMut<'a> {
     Stack(&'a mut Limb),
-    Heap(LimbsMut<'a>),
+    Heap(LimbsMut<'a>, NonZeroUsize),
 }
 
 impl ApInt {
@@ -191,7 +191,7 @@ impl ApInt {
             // SAFETY: A len of 1 guarantees that value is a valid limb.
             NZUSIZE_ONE => LimbData::Stack(unsafe { self.data.value }),
             // SAFETY: A len greater than 1 guarantees that ptr is a valid pointer.
-            _ => LimbData::Heap(unsafe { self.limbs() }),
+            len => LimbData::Heap(unsafe { self.limbs() }, len),
         }
     }
 
@@ -202,7 +202,7 @@ impl ApInt {
             // SAFETY: A len of 1 guarantees that value is a valid limb.
             NZUSIZE_ONE => LimbDataMut::Stack(unsafe { &mut self.data.value }),
             // SAFETY: A len greater than 1 guarantees that ptr is a valid pointer.
-            _ => LimbDataMut::Heap(unsafe { self.limbs_mut() }),
+            len => LimbDataMut::Heap(unsafe { self.limbs_mut() }, len),
         }
     }
 

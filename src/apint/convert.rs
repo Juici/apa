@@ -125,16 +125,16 @@ macro_rules! impl_to_prim {
                     unsafe {
                         match int.data() {
                             LimbData::Stack(limb) => limb.repr_signed() as $ty,
-                            LimbData::Heap(ptr) => match SIZE_LIMB * int.len.get() {
+                            LimbData::Heap(ptr, len) => match SIZE_LIMB * len.get() {
                                 size_int if SIZE_TY <= size_int => $ty::from_le(*ptr.as_ptr().cast()),
                                 _ => {
                                     // The number of limbs that can fit in $t.
                                     const FACTOR: usize = SIZE_TY / SIZE_LIMB;
                                     // Copy as many limbs as we have or that can fit in $t.
-                                    let n_copy = int.len.get().min(FACTOR);
+                                    let n_copy = len.get().min(FACTOR);
 
                                     // Last limb has the sign.
-                                    let sign_limb = (*ptr.add(int.len.get() - 1)).repr_signed();
+                                    let sign_limb = (*ptr.add(len.get() - 1)).repr_signed();
                                     // Propagate the sign across the limb, taking advantage of signed shift.
                                     let sign_byte = (sign_limb >> SHIFT_LIMB) as u8;
 
