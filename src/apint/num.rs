@@ -1,6 +1,6 @@
 use core::mem;
 
-use num_traits::{FromPrimitive, NumCast, One, ToPrimitive, Zero};
+use num_traits::{FromPrimitive, Num, NumCast, One, Signed, ToPrimitive, Zero};
 
 use crate::apint::{ApInt, LimbData};
 use crate::limb::Limb;
@@ -33,7 +33,36 @@ impl One for ApInt {
     }
 }
 
+impl Signed for ApInt {
+    fn abs(&self) -> Self {
+        todo!()
+    }
+
+    fn abs_sub(&self, _other: &Self) -> Self {
+        todo!()
+    }
+
+    fn signum(&self) -> Self {
+        todo!()
+    }
+
+    fn is_positive(&self) -> bool {
+        todo!()
+    }
+
+    fn is_negative(&self) -> bool {
+        todo!()
+    }
+}
+
 // TODO: Implement Num for ApInt.
+impl Num for ApInt {
+    type FromStrRadixErr = ();
+
+    fn from_str_radix(str: &str, radix: u32) -> Result<Self, Self::FromStrRadixErr> {
+        todo!()
+    }
+}
 
 impl FromPrimitive for ApInt {
     fn from_isize(n: isize) -> Option<ApInt> {

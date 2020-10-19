@@ -7,6 +7,7 @@ use crate::limb::Limb;
 use crate::limbs::{Limbs, LimbsMut};
 use crate::mem;
 
+mod bitwise;
 mod cmp;
 mod convert;
 mod num;

@@ -1,3 +1,5 @@
+use core::ops::Not;
+
 #[cfg(target_pointer_width = "32")]
 pub type LimbRepr = u32;
 #[cfg(target_pointer_width = "64")]
@@ -100,3 +102,11 @@ macro_rules! impl_fmt {
 }
 
 impl_fmt!(Limb: [Binary, Octal, LowerHex, UpperHex]);
+
+impl Not for Limb {
+    type Output = Limb;
+
+    fn not(self) -> Limb {
+        Limb(self.repr().not())
+    }
+}
