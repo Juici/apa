@@ -27,4 +27,4 @@ num-integer = "0.1"
 
 [dev-dependencies]
 paste = "1.0"
-quickcheck = "0.9"
+quickcheck = "1.0"
