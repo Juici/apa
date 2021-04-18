@@ -4,9 +4,7 @@
 #![deny(missing_docs)]
 
 mod alloc;
-mod apint;
-mod limb;
-mod limbs;
-mod mem;
+mod int;
+mod ll;
 
-pub use crate::apint::ApInt;
+pub use crate::int::{Int, Sign};
