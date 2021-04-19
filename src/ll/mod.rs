@@ -1,2 +1,2 @@
 pub mod limb;
-pub mod limbs;
+pub mod limb_ptr;
