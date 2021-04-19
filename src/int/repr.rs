@@ -1,5 +1,6 @@
 use core::alloc::Layout;
 use core::mem;
+use core::num::NonZeroUsize;
 use core::ptr::{self, NonNull};
 
 use crate::alloc;
@@ -98,6 +99,8 @@ impl Int {
             Ok(_) => {}
             Err(_) => capacity_overflow(),
         }
+        // SAFETY: `layout.size() > 0` is guaranteed, since the caller
+        //         guarantees `len.len() > 1` and `Limb` is not a ZST.
         let ptr = alloc::allocate_zeroed(layout);
 
         let repr = Repr { ptr: ptr.cast() };
@@ -158,10 +161,51 @@ impl Clone for Int {
         }
     }
 
-    // TODO: Specialised clone_from implementation.
-    // fn clone_from(&mut self, source: &Self) {
-    //     unimplemented!()
-    // }
+    fn clone_from(&mut self, source: &Self) {
+        match source.current_allocation() {
+            None => {
+                // We drop `self`, in favour of creating a clone of `source`.
+                // This allows us to reuse our existing `Drop` and `Clone::clone`
+                // implementations.
+                *self = source.clone();
+            }
+            Some((src, new_layout)) => {
+                let dst = match self.current_allocation() {
+                    // SAFETY: We already have an allocated block of memory, so
+                    //         we can bypass runtime checks on the size of layout.
+                    None => unsafe { alloc::allocate(new_layout) },
+
+                    Some((mut dst, old_layout)) => {
+                        // If the layouts differ in size, we will attempt to
+                        // resize the allocation referenced by `dst`.
+                        if old_layout.size() != new_layout.size() {
+                            static_assertions::const_assert!(Limb::SIZE != 0);
+
+                            let new_size = new_layout.size();
+                            // SAFETY: `new_size > 0` is guaranteed, since `Limb` is not a ZST
+                            //         and source has more than 1 limb.
+                            let new_size = unsafe { NonZeroUsize::new_unchecked(new_size) };
+
+                            // SAFETY: We already have an allocated block of memory, so we can
+                            //         bypass runtime checks on new_size overflowing.
+                            dst = unsafe { alloc::reallocate(dst, old_layout, new_size) };
+                        }
+
+                        // `dst` is guaranteed to have the same layout as `src` now.
+                        dst
+                    }
+                };
+
+                // SAFETY: `src` is valid for reads of `new_layout.size()` bytes.
+                //         `dst` is valid for writes of `new_layout.size()` bytes.
+                //         `src` and `dst` are nonoverlapping.
+                unsafe { ptr::copy_nonoverlapping(src.as_ptr(), dst.as_ptr(), new_layout.size()) };
+
+                // Update `self` length to match `source` length.
+                self.len = source.len;
+            }
+        }
+    }
 }
 
 impl Drop for Int {
