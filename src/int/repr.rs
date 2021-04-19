@@ -1,6 +1,6 @@
 use core::alloc::Layout;
 use core::mem;
-use core::ptr::NonNull;
+use core::ptr::{self, NonNull};
 
 use crate::alloc;
 use crate::ll::limb::Limb;
@@ -37,7 +37,7 @@ pub(crate) struct ReprLen(pub(crate) i32);
 static_assertions::assert_eq_size!(ReprLen, i32);
 
 impl ReprLen {
-    /// Returns the magnitude of the length.
+    /// Returns the magnitude of `self`.
     #[inline(always)]
     pub const fn len(self) -> usize {
         self.0.unsigned_abs() as usize
@@ -58,10 +58,19 @@ impl ReprLen {
             _ => Sign::Negative,
         }
     }
+
+    /// Returns a [`ReprLen`] representing the magnitude of `self`.
+    #[inline(always)]
+    pub const fn abs(self) -> ReprLen {
+        // We should never encounter a scenario where we overflow,
+        // since we would probably have run out of memory already.
+        ReprLen(self.0.abs())
+    }
 }
 
 impl Int {
     /// Returns an [`Int`] with a single unsigned limb.
+    #[inline]
     pub(crate) const fn from_limb(limb: Limb) -> Int {
         let repr = Repr { inline: limb };
         let len = match limb.repr() {
@@ -120,6 +129,41 @@ impl Int {
     }
 }
 
+impl Clone for Int {
+    fn clone(&self) -> Self {
+        let repr = match self.current_allocation() {
+            None => Repr {
+                // SAFETY: Our representation is inline.
+                inline: unsafe { self.repr.inline },
+            },
+            Some((src, layout)) => {
+                // Don't bother allocating zeroed memory, since we will
+                // overwrite it in the `ptr::copy_nonoverlapping` call.
+
+                // SAFETY: We already have an allocated block of memory, so we can
+                //         bypass runtime checks on the size of layout.
+                let dst = unsafe { alloc::allocate(layout) };
+
+                // SAFETY: `src` is valid for reads of `layout.size()` bytes.
+                //         `dst` is valid for writes of `layout.size()` bytes.
+                //         `src` and `dst` are nonoverlapping.
+                unsafe { ptr::copy_nonoverlapping(src.as_ptr(), dst.as_ptr(), layout.size()) };
+
+                Repr { ptr: dst.cast() }
+            }
+        };
+        Int {
+            repr,
+            len: self.len,
+        }
+    }
+
+    // TODO: Specialised clone_from implementation.
+    // fn clone_from(&mut self, source: &Self) {
+    //     unimplemented!()
+    // }
+}
+
 impl Drop for Int {
     fn drop(&mut self) {
         // There is no need to drop the limbs, so we just deallocate if our
@@ -133,6 +177,13 @@ impl Drop for Int {
         }
     }
 }
+
+// `Int` can safely be sent across thread boundaries, since it does not own
+// aliasing memory and has no reference counting mechanism.
+unsafe impl Send for Int {}
+// `Int` can safely be shared between threads, since it does not own
+// aliasing memory and has no mutable internal state.
+unsafe impl Sync for Int {}
 
 // We need to guarantee the following:
 // - We don't ever allocate `> isize::MAX` byte-size objects.
