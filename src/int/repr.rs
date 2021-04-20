@@ -5,6 +5,7 @@ use core::ptr::{self, NonNull};
 
 use crate::alloc;
 use crate::ll::limb::Limb;
+use crate::ll::limb_ptr::{LimbMutPtr, LimbPtr};
 
 use super::{Int, Sign};
 
@@ -70,6 +71,30 @@ impl ReprLen {
 }
 
 impl Int {
+    /// Returns a pointer to the first limb in `self`.
+    pub(crate) fn as_ptr(&self) -> LimbPtr {
+        let ptr = if self.len.is_inline() {
+            // SAFETY: Representation is inline.
+            unsafe { &self.repr.inline as *const Limb }
+        } else {
+            // SAFETY: Representation is heap allocated.
+            unsafe { self.repr.ptr.as_ptr() }
+        };
+        LimbPtr::new(ptr, self.len)
+    }
+
+    /// Returns a mutable pointer to the first limb in `self`.
+    pub(crate) fn as_mut_ptr(&mut self) -> LimbMutPtr {
+        let ptr = if self.len.is_inline() {
+            // SAFETY: Representation is inline.
+            unsafe { &mut self.repr.inline as *mut Limb }
+        } else {
+            // SAFETY: Representation is heap allocated.
+            unsafe { self.repr.ptr.as_ptr() }
+        };
+        LimbMutPtr::new(ptr, self.len)
+    }
+
     /// Returns an [`Int`] with a single unsigned limb.
     #[inline]
     pub(crate) const fn from_limb(limb: Limb) -> Int {

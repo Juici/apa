@@ -1,3 +1,4 @@
+use crate::int::repr::ReprLen;
 use crate::ll::limb::Limb;
 
 // Expand arguments if debug_assertions are enabled.
@@ -23,7 +24,7 @@ pub(crate) struct LimbPtr {
 
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(not(debug_assertions), repr(transparent))]
-pub(crate) struct LimbPtrMut {
+pub(crate) struct LimbMutPtr {
     ptr: *mut Limb,
     #[cfg(debug_assertions)]
     bounds: Bounds,
@@ -33,11 +34,11 @@ macro_rules! limb_ptr {
     ($ty:ident($ptr:ty)) => {
         impl $ty {
             #[cfg_attr(not(debug_assertions), inline(always))]
-            pub fn new(ptr: $ptr, len: usize) -> $ty {
+            pub fn new(ptr: $ptr, len: ReprLen) -> $ty {
                 $ty {
                     ptr,
                     #[cfg(debug_assertions)]
-                    bounds: Bounds::new(ptr as usize, len),
+                    bounds: Bounds::new(ptr as usize, len.len()),
                 }
             }
 
@@ -63,9 +64,9 @@ macro_rules! limb_ptr {
 }
 
 limb_ptr![LimbPtr(*const Limb)];
-limb_ptr![LimbPtrMut(*mut Limb)];
+limb_ptr![LimbMutPtr(*mut Limb)];
 
-impl LimbPtrMut {
+impl LimbMutPtr {
     #[cfg_attr(not(debug_assertions), inline(always))]
     pub unsafe fn deref_mut(&mut self) -> &mut Limb {
         if_debug_assertions!(self.bounds.validate_deref(self.ptr as usize));

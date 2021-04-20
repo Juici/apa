@@ -1,4 +1,4 @@
-mod repr;
+pub(crate) mod repr;
 #[cfg(test)]
 mod tests;
 
