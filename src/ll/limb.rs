@@ -10,7 +10,7 @@ const REPR_ONES: LimbRepr = !REPR_ZERO;
 /// A part of an `Int` that fits within a single machine word.
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub(crate) struct Limb(LimbRepr);
+pub struct Limb(LimbRepr);
 
 static_assertions::assert_eq_size!(Limb, core::ptr::NonNull<Limb>);
 static_assertions::const_assert!(Limb::SIZE != 0);

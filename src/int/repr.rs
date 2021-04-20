@@ -10,9 +10,9 @@ use crate::ll::limb_ptr::{LimbMutPtr, LimbPtr};
 use super::{Int, Sign};
 
 /// Internal storage for `Int` using one machine word.
-pub(crate) union Repr {
-    pub(crate) inline: Limb,
-    pub(crate) ptr: NonNull<Limb>,
+pub union Repr {
+    pub inline: Limb,
+    pub ptr: NonNull<Limb>,
 }
 
 static_assertions::assert_eq_size!(Repr, Limb);
@@ -34,11 +34,23 @@ static_assertions::assert_eq_size!(Repr, Limb);
 /// - `len.abs() > 1` means the [`Repr`] uses a heap allocation.
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub(crate) struct ReprLen(pub(crate) i32);
+pub struct ReprLen(i32);
 
 static_assertions::assert_eq_size!(ReprLen, i32);
 
 impl ReprLen {
+    /// Returns a [`ReprLen`] with the given value.
+    #[inline(always)]
+    pub const fn new(len: i32) -> ReprLen {
+        ReprLen(len)
+    }
+
+    /// Returns the internal representation of the length.
+    #[inline(always)]
+    pub const fn repr(self) -> i32 {
+        self.0
+    }
+
     /// Returns the magnitude of `self`.
     #[inline(always)]
     pub const fn len(self) -> usize {
@@ -72,6 +84,7 @@ impl ReprLen {
 
 impl Int {
     /// Returns a pointer to the first limb in `self`.
+    #[inline(always)]
     pub(crate) fn as_ptr(&self) -> LimbPtr {
         let ptr = if self.len.is_inline() {
             // SAFETY: Representation is inline.
@@ -84,6 +97,7 @@ impl Int {
     }
 
     /// Returns a mutable pointer to the first limb in `self`.
+    #[inline(always)]
     pub(crate) fn as_mut_ptr(&mut self) -> LimbMutPtr {
         let ptr = if self.len.is_inline() {
             // SAFETY: Representation is inline.

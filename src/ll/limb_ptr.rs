@@ -16,7 +16,7 @@ cfg_if::cfg_if! {
 
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(not(debug_assertions), repr(transparent))]
-pub(crate) struct LimbPtr {
+pub struct LimbPtr {
     ptr: *const Limb,
     #[cfg(debug_assertions)]
     bounds: Bounds,
@@ -24,7 +24,7 @@ pub(crate) struct LimbPtr {
 
 #[derive(Clone, Copy, Debug)]
 #[cfg_attr(not(debug_assertions), repr(transparent))]
-pub(crate) struct LimbMutPtr {
+pub struct LimbMutPtr {
     ptr: *mut Limb,
     #[cfg(debug_assertions)]
     bounds: Bounds,
@@ -40,6 +40,11 @@ macro_rules! limb_ptr {
                     #[cfg(debug_assertions)]
                     bounds: Bounds::new(ptr as usize, len.len()),
                 }
+            }
+
+            #[inline(always)]
+            pub const fn raw(self) -> $ptr {
+                self.ptr
             }
 
             #[cfg_attr(not(debug_assertions), inline(always))]

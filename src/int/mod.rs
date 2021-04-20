@@ -1,7 +1,9 @@
-pub(crate) mod repr;
 #[cfg(test)]
 mod tests;
 
+pub(crate) mod repr;
+
+use crate::ll;
 use crate::ll::limb::Limb;
 
 use self::repr::{Repr, ReprLen};
@@ -43,9 +45,9 @@ impl Int {
     #[inline]
     pub const fn from_isize(n: isize) -> Int {
         let len = match n {
-            n if n > 0 => ReprLen(1),
-            0 => ReprLen(0),
-            _ => ReprLen(-1),
+            n if n > 0 => ReprLen::new(1),
+            0 => ReprLen::new(0),
+            _ => ReprLen::new(-1),
         };
 
         let limb = Limb::new(n.unsigned_abs());
@@ -80,3 +82,52 @@ impl Int {
         self
     }
 }
+
+impl PartialEq<usize> for Int {
+    #[inline]
+    fn eq(&self, other: &usize) -> bool {
+        // Only zero or positive single limb integers can match.
+        if !matches!(self.len.repr(), 0 | 1) {
+            return false;
+        }
+        // SAFETY: Representation is inline.
+        unsafe { self.repr.inline.repr() == *other }
+    }
+}
+
+impl PartialEq<isize> for Int {
+    #[inline]
+    fn eq(&self, other: &isize) -> bool {
+        // The signum of `other` is guaranteed to be one of -1, 0, or 1.
+        let signum = other.signum() as i32;
+
+        // If `len` matches `signum`, then we know that `self` has the same
+        // sign as `other`, and that the representation of `self` is inline.
+        if self.len.repr() != signum {
+            // Only single limb integers can match.
+            return false;
+        }
+
+        // At this point we know that `self` and `other` have the same sign,
+        // we now only care that their absolute values match.
+        // SAFETY: Representation is inline.
+        unsafe { self.repr.inline.repr() == other.unsigned_abs() }
+    }
+}
+
+impl PartialEq for Int {
+    fn eq(&self, other: &Self) -> bool {
+        if self.len != other.len {
+            return false;
+        }
+        if self.len.is_inline() {
+            // SAFETY: Representation of `self` and `other` is inline.
+            unsafe { self.repr.inline == other.repr.inline }
+        } else {
+            // SAFETY: `self` and `other` both have length `self.len`.
+            unsafe { ll::eq(self.as_ptr(), other.as_ptr(), self.len.len()) }
+        }
+    }
+}
+
+impl Eq for Int {}
