@@ -67,6 +67,14 @@ limb_ptr![LimbPtr(*const Limb)];
 limb_ptr![LimbMutPtr(*mut Limb)];
 
 impl LimbMutPtr {
+    #[inline(always)]
+    pub const fn as_const(self) -> LimbPtr {
+        LimbPtr {
+            ptr: self.ptr,
+            bounds: self.bounds,
+        }
+    }
+
     #[cfg_attr(not(debug_assertions), inline(always))]
     pub unsafe fn deref_mut(&mut self) -> &mut Limb {
         if_debug_assertions!(self.bounds.validate_deref(self.ptr as usize));
